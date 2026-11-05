@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>پنل معلم</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+     <div style="display: flex; align-items: center;">
+    <!-- دکمه مخفی برای انتخاب عکس -->
+        <input type="file" id="bannerInput" accept="image/*" style="display: none;">
+        <button onclick="document.getElementById('bannerInput').click()" class="reset-btn" style="background: #4a7cff; color: white;">تغییر عکس بنر</button>
+  
+            <button onclick="DB.reset()" class="reset-btn">بازنشانی داده‌ها</button>
+            <button onclick="Auth.logout()" class="logout-btn">خروج</button>
+        </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="schedule">برنامه هفتگی</button>
+    <button class="tab-btn" data-tab="attendance">غیبت و تاخیر</button>
+    <button class="tab-btn" data-tab="students">دانش‌آموزها</button>
+  </div>
+
+  <section id="schedule-section" class="tab-content active">
+    <h2>افزودن جلسه</h2>
+    <form id="scheduleForm" class="form-row">
+      <select id="day" aria-placeholder="مثلا 11/08/1405"  required>
+        <option value="">روز...</option>
+        <option>شنبه</option><option>یکشنبه</option><option>دوشنبه</option>
+        <option>سه‌شنبه</option><option>چهارشنبه</option><option>پنجشنبه</option><option>جمعه</option>
+      </select>
+      <input id="lesson" placeholder="اسم درس" required>
+      <input id="topic" placeholder="تدریس‌شده">
+      <input id="homework" placeholder="تکلیف">
+      <button type="submit">افزودن</button>
+    </form>
+    <h2>برنامه فعلی</h2>
+    <div id="schedule-list"></div>
+  </section>
+
+  <section id="attendance-section" class="tab-content">
+    <h2>ثبت غیبت/تاخیر</h2>
+    <form id="attendanceForm" class="form-row">
+      <select id="student" required></select>
+      <input type="text" id="date" required>
+      <select id="status" required>
+        <option value="present">حاضر</option>
+        <option value="absent">غایب</option>
+        <option value="late">تاخیر</option>
+      </select>
+      <button type="submit">ثبت</button>
+    </form>
+    <h2>غیبت‌های ثبت‌شده</h2>
+    <div id="attendance-list"></div>
+  </section>
+
+  <section id="students-section" class="tab-content">
+    <h2>افزودن دانش‌آموز</h2>
+    <form id="studentForm" class="form-row">
+      <input id="newPassword" placeholder="رمز ورود (حروف کوچک انگلیسی + عدد)" required>
+      <input id="newName" placeholder="اسم و فامیل" required>
+      <button type="submit">افزودن</button>
+    </form>
+    <h2>لیست دانش‌آموزها</h2>
+    <div id="students-list"></div>
+  </section>
+
+  <!-- بنر بزرگ پایین صفحه -->
+  <script src="app.js"></script>
+  <script>
+    Auth.require('teacher');
+
+    const scheduleForm = document.getElementById('scheduleForm');
+    const scheduleList = document.getElementById('schedule-list');
+    const attendanceForm = document.getElementById('attendanceForm');
+    const attendanceList = document.getElementById('attendance-list');
+    const studentSelect = document.getElementById('student');
+    const studentForm = document.getElementById('studentForm');
+    const studentsList = document.getElementById('students-list');
+
+    function renderSchedule() {
+      const data = Data.getSchedule();
+      if (data.length === 0) {
+        scheduleList.innerHTML = '<p class="empty">هنوز برنامه‌ای ثبت نشده.</p>';
+        return;
+      }
+      const DAYS = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
+      scheduleList.innerHTML = DAYS.map(day => {
+        const items = data.filter(s => s.day === day);
+        if (items.length === 0) return '';
+        return `
+          <h3 class="day-header">${day}</h3>
+          ${items.map(item => `
+            <div class="card">
+              <div>
+                <h3>${item.lesson}</h3>
+                <p><strong>تدریس:</strong> ${item.topic || '—'}</p>
+                <p><strong>تکلیف:</strong> ${item.homework || '—'}</p>
+              </div>
+              <button class="delete-btn" onclick="removeSchedule('${item.id}')">حذف</button>
+            </div>
+          `).join('')}`;
+      }).join('');
+    }
+    window.removeSchedule = (id) => {
+      if (confirm('حذف بشه؟')) { Data.deleteSchedule(id); renderSchedule(); }
+    };
+
+    scheduleForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      Data.addSchedule({
+        day: document.getElementById('day').value,
+        lesson: document.getElementById('lesson').value,
+        topic: document.getElementById('topic').value,
+        homework: document.getElementById('homework').value
+      });
+      scheduleForm.reset();
+      renderSchedule();
+    });
+
+    function refreshStudentSelect() {
+      const students = Data.getStudents();
+      studentSelect.innerHTML = students.map(s =>
+        `<option value="${s.password}">${s.full_name}</option>`
+      ).join('');
+    }
+
+    function renderAttendance() {
+      const data = Data.getAttendance();
+      if (data.length === 0) {
+        attendanceList.innerHTML = '<p class="empty">هنوز غیبتی ثبت نشده.</p>';
+        return;
+      }
+      const labels = { present: 'حاضر', absent: 'غایب', late: 'تاخیر' };
+      const classes = { present: 'ok', absent: 'bad', late: 'warn' };
+      attendanceList.innerHTML = `
+        <table>
+          <thead><tr><th>دانش‌آموز</th><th>تاریخ</th><th>وضعیت</th><th></th></tr></thead>
+          <tbody>
+            ${data.sort((a, b) => b.date.localeCompare(a.date)).map(a => `
+              <tr>
+                <td>${Data.nameOf(a.password)}</td>
+                <td>${faDate(a.date)}</td>
+                <td><span class="badge ${classes[a.status]}">${labels[a.status]}</span></td>
+                <td><button class="delete-btn" onclick="removeAttendance('${a.id}')">حذف</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+    }
+    window.removeAttendance = (id) => {
+      if (confirm('حذف بشه؟')) { Data.deleteAttendance(id); renderAttendance(); }
+    };
+
+    attendanceForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      Data.addAttendance({
+        password: studentSelect.value,
+        date: document.getElementById('date').value,
+        status: document.getElementById('status').value
+      });
+      document.getElementById('date').value = '';
+      renderAttendance();
+    });
+
+    function renderStudents() {
+      const students = Data.getStudents();
+      if (students.length === 0) {
+        studentsList.innerHTML = '<p class="empty">هنوز دانش‌آموزی اضافه نشده.</p>';
+        return;
+      }
+      studentsList.innerHTML = `
+        <table>
+          <thead><tr><th>اسم</th><th>رمز ورود</th><th></th></tr></thead>
+          <tbody>
+            ${students.map(s => `
+              <tr>
+                <td>${s.full_name}</td>
+                <td><code>${s.password}</code></td>
+                <td><button class="delete-btn" onclick="removeStudent('${s.password}')">حذف</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+    }
+    window.removeStudent = (password) => {
+      if (confirm('حذف بشه؟ غیبت‌هاش هم پاک می‌شن.')) {
+        Data.deleteStudent(password);
+        renderStudents();
+        refreshStudentSelect();
+        renderAttendance();
+      }
+    };
+
+    studentForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const password = document.getElementById('newPassword').value;
+      const name = document.getElementById('newName').value;
+      const result = Data.addStudent(password, name);
+      if (result.error) return alert(result.error);
+      studentForm.reset();
+      renderStudents();
+      refreshStudentSelect();
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab + '-section').classList.add('active');
+      });
+    });
+// ---------- تغییر عکس بنر ----------
+const bannerInput = document.getElementById('bannerInput');
+bannerInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // چک کردن حجم عکس (نهایت ۲ مگابایت باشه که مرورگر قاطی نکنه)
+  if (file.size > 2 * 1024 * 1024) {
+    alert('لطفاً عکسی با حجم کمتر از ۲ مگابایت انتخاب کنید.');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const base64Image = event.target.result;
+    // ذخیره در حافظه مرورگر با اسم custom_banner
+    localStorage.setItem('custom_banner', base64Image); 
+    alert('عکس بنر با موفقیت تغییر کرد!');
+  };
+  reader.readAsDataURL(file);
+});
+    refreshStudentSelect();
+    renderSchedule();
+    renderAttendance();
+    renderStudents();
+  </script>
+</body>
+</html>
