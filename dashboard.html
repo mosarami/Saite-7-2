@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>پنل من</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <img src="logo.jpg" alt="لوگو" class="header-logo">
+      <h1 id="welcome">سلام</h1>
+    </div>
+    <button onclick="Auth.logout()" class="logout-btn">خروج</button>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="schedule">برنامه هفتگی</button>
+    <button class="tab-btn" data-tab="attendance">غیبت و تاخیر</button>
+  </div>
+
+  <section id="schedule-section" class="tab-content active">
+    <div id="days-nav" class="days-nav"></div>
+    <div id="schedule-list"></div>
+  </section>
+
+  <section 
+  id="attendance-section" class="tab-content">
+    <div id="attendance-list"></div>
+  </section>
+
+  <div class="banner-container">
+    <img src="banner.jpg" alt="بنر مدرسه" class="banner-img">
+  </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+  <script>
+    const user = Auth.require('student');
+
+    if (user) {
+      document.getElementById('welcome').textContent = 'سلام ' + user.full_name + ' 👋';
+
+      const DAYS = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
+      const daysNav = document.getElementById('days-nav');
+      const scheduleList = document.getElementById('schedule-list');
+
+      async function loadData() {
+        const schedule = await Data.getSchedule();
+
+        function showDay(day) {
+          document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+          const btn = document.querySelector(`.day-btn[data-day="${day}"]`);
+          if (btn) btn.classList.add('active');
+
+          const items = schedule.filter(s => s.day === day);
+          if (items.length === 0) {
+            scheduleList.innerHTML = '<p class="empty">برنامه‌ای برای این روز ثبت نشده.</p>';
+            return;
+          }
+          scheduleList.innerHTML = items.map(item => `
+            <div class="card">
+              <div>
+                <h3>${item.lesson}</h3>
+                <p><strong>تدریس:</strong> ${item.topic || '—'}</p>
+                <p><strong>تکلیف:</strong> ${item.homework || '—'}</p>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        daysNav.innerHTML = DAYS.map((d, i) =>
+          `<button class="day-btn ${i === 0 ? 'active' : ''}" data-day="${d}">${d}</button>`
+        ).join('');
+
+        daysNav.addEventListener('click', (e) => {
+          const btn = e.target.closest('.day-btn');
+          if (btn) showDay(btn.dataset.day);
+        });
+
+        showDay(DAYS[0]);
+
+        const attendance = await Data.getAttendance(user.password);
+        const attendanceList = document.getElementById('attendance-list');
+
+        if (attendance.length === 0) {
+          attendanceList.innerHTML = '<p class="empty">غیبت یا تاخیری ثبت نشده. 🎉</p>';
+        } else {
+          const labels = { present: 'حاضر', absent: 'غایب', late: 'تاخیر' };
+          const classes = { present: 'ok', absent: 'bad', late: 'warn' };
+          attendanceList.innerHTML = `
+            <table>
+              <thead><tr><th>تاریخ</th><th>وضعیت</th></tr></thead>
+              <tbody>
+                ${attendance.map(a => `
+                  <tr>
+                    <td>${faDate(a.date)}</td>
+                    <td><span class="badge ${classes[a.status]}">${labels[a.status]}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>`;
+        }
+      }
+
+      loadData();
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById(btn.dataset.tab + '-section').classList.add('active');
+
+});
+      });
+    }
+  </script>
+</body>
+</html>

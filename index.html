@@ -1,0 +1,58 @@
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ورود به پنل مدرسه</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-page">
+
+  <div class="login-box">
+    <h1>سایت خصوصی حفتمیای گنگ😎</h1>
+    <p class="subtitle">رمز عبور خود را وارد کنید</p>
+    <form id="loginForm">
+      <input type="text" id="password" placeholder="رمز عبور" required autofocus autocomplete="off">
+      <button type="submit">ورود</button>
+    </form>
+    <p id="message"></p>
+  </div>
+
+  <div class="banner-container">
+    <img src="banner.jpg" alt="بنر مدرسه" class="banner-img">
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('message');
+
+      msg.textContent = 'در حال بررسی...';
+      msg.className = '';
+
+      const user = await Auth.login(password);
+
+      if (!user) {
+        msg.textContent = 'رمز اشتباه است';
+        msg.className = 'error';
+        document.getElementById('password').value = '';
+        return;
+      }
+
+      msg.textContent = 'ورود موفق! در حال انتقال...';
+
+      setTimeout(() => {
+        if (user.role === 'teacher') {
+          window.location.href = 'teacher.html';
+        } else {
+          window.location.href = 'dashboard.html';
+        }
+      }, 500);
+    });
+  </script>
+</body>
+</html>
